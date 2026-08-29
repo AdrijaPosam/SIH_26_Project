@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NSG Tactical AI Command Engine | MHA Incident Command Post</title>
+  <style>
+    :root {
+      --bg-dark: #070b12;
+      --bg-panel: #0f172a;
+      --bg-card: #1e293b;
+      --border-dark: #1e293b;
+      --border-glow: #334155;
+      --accent-emerald: #10b981;
+      --accent-cyan: #06b6d4;
+      --accent-amber: #f59e0b;
+      --accent-red: #ef4444;
+      --accent-purple: #a855f7;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background-color: var(--bg-dark);
+      color: var(--text-main);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      padding: 12px 18px;
+      overflow-x: hidden;
+    }
+
+    /* Tactical Header */
+    .header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-glow);
+      padding-bottom: 10px;
+      margin-bottom: 12px;
+      background: linear-gradient(90deg, rgba(16,185,129,0.05) 0%, rgba(6,182,212,0.02) 100%);
+      padding: 8px 12px;
+      border-radius: 6px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .emblem {
+      background: #000;
+      border: 1px solid var(--accent-emerald);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-weight: 900;
+      font-size: 13px;
+      color: var(--accent-emerald);
+      letter-spacing: 1.5px;
+    }
+
+    .controls { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    select, button, input {
+      background: var(--bg-panel);
+      border: 1px solid var(--border-glow);
+      color: #fff;
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      outline: none;
+      transition: all 0.15s ease;
+    }
+    select:hover, button:hover { border-color: var(--accent-cyan); }
+    button.primary { background: #1e3a8a; border-color: #3b82f6; font-weight: bold; }
+    button.primary:hover { background: #2563eb; }
+    button.tool-btn { background: #334155; border: none; font-weight: bold; }
+    button.tool-btn.active { background: var(--accent-amber); color: #000; }
+    button.danger-btn { background: rgba(239, 68, 68, 0.2); border: 1px solid var(--accent-red); color: var(--accent-red); }
+    button.danger-btn:hover { background: var(--accent-red); color: #fff; }
+    button.sitrep-btn { background: rgba(16, 185, 129, 0.2); border: 1px solid var(--accent-emerald); color: var(--accent-emerald); font-weight: bold; }
+    button.sitrep-btn:hover { background: var(--accent-emerald); color: #000; }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+      background-color: #475569;
+      color: #cbd5e1;
+    }
+    .badge.streaming { background-color: rgba(16,185,129,0.2); border: 1px solid var(--accent-emerald); color: #86efac; }
+    .badge.completed { background-color: rgba(59,130,246,0.2); border: 1px solid #3b82f6; color: #93c5fd; }
+    .badge.critical { background-color: rgba(239,68,68,0.3); border: 1px solid var(--accent-red); color: #fca5a5; animation: pulseRed 1s infinite; }
+
+    @keyframes pulseRed {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
+    /* Main Grid Layout */
+    .container { display: flex; gap: 14px; }
+    .video-wrapper {
+      position: relative;
+      flex: 2.4;
+      background: var(--bg-panel);
+      padding: 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-dark);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .hud-telemetry-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 11px;
+      color: var(--text-muted);
+      border-bottom: 1px solid #1e293b;
+      padding-bottom: 6px;
+    }
+
+    .stage {
+      position: relative;
+      width: 100%;
+      height: 540px;
+      background: #000;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #1f2937;
+    }
+    img#stream {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      display: block;
+    }
+    canvas#drawCanvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      pointer-events: none;
+    }
+    canvas#drawCanvas.active { pointer-events: auto; }
+
+    .bottom-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #1e293b;
+      font-size: 11px;
+    }
+
+    /* Sidebar */
+    .sidebar { flex: 1.1; display: flex; flex-direction: column; gap: 12px; max-width: 460px; }
+    .panel { background: var(--bg-panel); padding: 12px; border-radius: 6px; border: 1px solid var(--border-dark); }
+    .panel-title {
+      margin: 0 0 8px 0;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 1px solid var(--border-dark);
+      padding-bottom: 5px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .scroll-box { max-height: 230px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+    .target-card {
+      background: var(--bg-dark);
+      border: 1px solid var(--border-dark);
+      border-radius: 4px;
+      padding: 6px 8px;
+      font-size: 11px;
+    }
+    .target-card.breach { border-color: var(--accent-red); background: rgba(239,68,68,0.08); }
+    .target-card.high { border-color: var(--accent-amber); }
+
+    .alert-card {
+      padding: 6px 10px;
+      border-radius: 4px;
+      background: rgba(239, 68, 68, 0.15);
+      border-left: 3px solid var(--accent-red);
+      font-size: 11px;
+      line-height: 1.3;
+    }
+    .alert-card.ied { background: rgba(220, 38, 38, 0.25); border-left-color: #ff0055; animation: pulseRed 0.8s infinite; }
+    .alert-card.loitering { background: rgba(245, 158, 11, 0.15); border-left-color: var(--accent-amber); }
+    .alert-card.anomaly { background: rgba(168, 85, 247, 0.15); border-left-color: var(--accent-purple); }
+    .alert-card.crowd { background: rgba(6, 182, 212, 0.15); border-left-color: var(--accent-cyan); }
+
+    .grid-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 8px; margin-top: 4px; font-size: 10px; color: var(--text-muted); }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      justify-content: center;
+      align-items: center;
+    }
+    .modal.active { display: flex; }
+    .modal-content {
+      background: var(--bg-panel);
+      border: 1px solid var(--accent-cyan);
+      border-radius: 8px;
+      width: 780px;
+      max-width: 90vw;
+      max-height: 85vh;
+      display: flex;
+      flex-direction: column;
+      padding: 16px;
+      box-shadow: 0 0 30px rgba(6, 182, 212, 0.2);
+    }
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-dark);
+      padding-bottom: 8px;
+      margin-bottom: 12px;
+    }
+    .modal-body {
+      overflow-y: auto;
+      flex: 1;
+      background: var(--bg-dark);
+      padding: 14px;
+      border-radius: 4px;
+      border: 1px solid var(--border-dark);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      margin-top: 12px;
+      border-top: 1px solid var(--border-dark);
+      padding-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Tactical Header -->
+  <div class="header">
+    <div class="brand">
+      <div class="emblem">NSG TACTICAL ICP</div>
+      <div>
+        <h2 style="margin: 0; font-size: 15px; font-weight: 700; color: #fff; letter-spacing: 0.5px;">AI VIDEO INTERPRETATION & THREAT RECON ENGINE</h2>
+        <span style="font-size: 10px; color: var(--text-muted);">MINISTRY OF HOME AFFAIRS (MHA) &bull; MULTI-STREAM SURVEILLANCE HUB</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <!-- Feed Source Type Selector -->
+      <select id="feedTypeSelect" onchange="onFeedTypeChange()">
+        <option value="ANOMALY">Anomaly Dataset (Anomaly-Videos)</option>
+        <option value="SYNTHETIC">Synthetic Feeds (Tactical Sim)</option>
+        <option value="SAMPLE">Sample Recorded Videos</option>
+        <option value="UPLOAD">Uploaded Video Archive</option>
+      </select>
+
+      <!-- Category Selector for Anomaly Dataset (e.g. Abuse, Arrest, etc.) -->
+      <select id="categorySelect" onchange="onCategoryChange()" style="display: none;"></select>
+
+      <!-- Video File Selector -->
+      <select id="feedDetailSelect"></select>
+
+      <!-- Vision Mode -->
+      <select id="visionModeSelect" onchange="changeVisionMode()">
+        <option value="RGB">Optical (RGB)</option>
+        <option value="FLIR_IRONBOW">Thermal IR (FLIR)</option>
+        <option value="WHITE_HOT">FLIR White-Hot</option>
+        <option value="NIGHT_VISION">Gen-3 NVG (Green)</option>
+      </select>
+
+      <button class="primary" onclick="startStream()">Connect Stream</button>
+
+      <!-- Geofence Shape -->
+      <select id="shapeTypeSelect" onchange="switchShapeType()">
+        <option value="POLYGON">Polygon Geofence (N-Point)</option>
+        <option value="TRIPWIRE">Virtual Tripwire (2-Point)</option>
+        <option value="CIRCLE">Radial VIP Cordon (Center+Edge)</option>
+      </select>
+
+      <button id="drawBtn" class="tool-btn" onclick="toggleDrawMode()">Draw Perimeter</button>
+      <button class="danger-btn" onclick="clearZones()">Clear Zones</button>
+      <button class="sitrep-btn" onclick="openSITREPModal()">Generate SITREP</button>
+      
+      <span id="status-badge" class="badge">STANDBY</span>
+    </div>
+  </div>
+
+  <!-- Main Workspace -->
+  <div class="container">
+    <!-- Video Feed & HUD -->
+    <div class="video-wrapper">
+      <div class="hud-telemetry-bar">
+        <span><strong style="color: var(--accent-emerald);">FEED:</strong> <span id="hud-feed-name">STANDBY</span> | <strong style="color: var(--accent-cyan);">SECTOR:</strong> DELTA-04</span>
+        <span>
+          TIME: <strong id="vid-time" style="color: #fff;">00:00</strong> | 
+          FRAME: <strong id="vid-frame" style="color: #fff;">0/0</strong> | 
+          FPS: <strong style="color: var(--accent-emerald);">25.0</strong>
+        </span>
+      </div>
+
+      <div class="stage">
+        <img id="stream" src="" alt="Tactical Stream Standby..." />
+        <canvas id="drawCanvas"></canvas>
+      </div>
+
+      <div id="drawHelp" style="display: none; margin-top: 6px; font-size: 11px; color: var(--accent-amber);">
+        * Click anywhere on tactical feed to plot perimeter nodes. Click "Apply Boundary" to seal and activate the defense cordon.
+      </div>
+
+      <div class="bottom-toolbar">
+        <div>
+          <button onclick="toggleMuteAudio()" id="audioToggleBtn" style="font-size: 11px;">Audio Siren: ON</button>
+          <button onclick="triggerUploadModal()" style="font-size: 11px; margin-left: 6px;">Upload Video Feed</button>
+        </div>
+        <div>
+          <label style="color: var(--text-muted); font-size: 11px;">Playback Speed: </label>
+          <select id="speedSelect" onchange="onSpeedChange()" style="padding: 2px 6px; font-size: 11px;">
+            <option value="0.5">0.5x</option>
+            <option value="1.0" selected>1.0x (Realtime)</option>
+            <option value="2.0">2.0x (Fast)</option>
+            <option value="4.0">4.0x (Scan)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right Sidebar Telemetry -->
+    <div class="sidebar">
+      <!-- Target Kinematics -->
+      <div class="panel">
+        <h3 class="panel-title">
+          <span>Target Kinematics & Tracking</span>
+          <span id="target-count-badge" class="badge" style="font-size: 10px;">0 Targets</span>
+        </h3>
+        <div id="target-list" class="scroll-box">
+          <span style="color: var(--text-muted); font-size: 11px;">No active targets in sector</span>
+        </div>
+      </div>
+
+      <!-- Real-Time Incident Log -->
+      <div class="panel" style="flex: 1;">
+        <h3 class="panel-title">
+          <span>Real-Time Incident Stream</span>
+          <button onclick="clearIncidentLog()" style="padding: 1px 6px; font-size: 9px;">Clear</button>
+        </h3>
+        <div id="alerts-list" class="scroll-box" style="max-height: 250px;">
+          <span id="no-alerts-msg" style="color: var(--text-muted); font-size: 11px;">No security incidents detected</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SITREP Modal -->
+  <div id="sitrepModal" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 style="margin: 0; color: var(--accent-emerald); font-size: 14px;">MHA/NSG TACTICAL SITUATION REPORT (SITREP)</h3>
+        <button onclick="closeSITREPModal()" style="background: none; border: none; font-size: 16px; cursor: pointer;">&times;</button>
+      </div>
+      <div id="sitrepBody" class="modal-body">
+        Generating tactical debrief...
+      </div>
+      <div class="modal-footer">
+        <button onclick="downloadSITREPMarkdown()" class="primary">Download Markdown (.md)</button>
+        <button onclick="closeSITREPModal()">Dismiss</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div id="uploadModal" class="modal">
+    <div class="modal-content" style="width: 480px;">
+      <div class="modal-header">
+        <h3 style="margin: 0; color: var(--accent-cyan); font-size: 14px;">UPLOAD SURVEILLANCE FOOTAGE</h3>
+        <button onclick="closeUploadModal()" style="background: none; border: none; font-size: 16px; cursor: pointer;">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="color: var(--text-muted); font-size: 11px;">Select an MP4/AVI tactical video file to upload for AI video interpretation.</p>
+        <input type="file" id="videoFileInput" accept=".mp4,.avi,.mkv,.mov" style="width: 100%; margin-top: 8px;" />
+      </div>
+      <div class="modal-footer">
+        <button class="primary" onclick="submitVideoUpload()">Upload Footage</button>
+        <button onclick="closeUploadModal()">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let ws = null;
+    let availableFeeds = {};
+    let activeObjectUrl = null;
+    let isDrawing = false;
+    let drawnPoints = [];
+    let audioEnabled = true;
+    let latestSITREPMarkdown = "";
+    const seenAlertKeys = new Set();
+
+    // DOM Elements
+    const feedTypeSelect = document.getElementById("feedTypeSelect");
+    const categorySelect = document.getElementById("categorySelect");
+    const feedDetailSelect = document.getElementById("feedDetailSelect");
+    const visionModeSelect = document.getElementById("visionModeSelect");
+    const shapeTypeSelect = document.getElementById("shapeTypeSelect");
+    const streamImg = document.getElementById("stream");
+    const alertsList = document.getElementById("alerts-list");
+    const targetList = document.getElementById("target-list");
+    const targetCountBadge = document.getElementById("target-count-badge");
+    const statusBadge = document.getElementById("status-badge");
+    const vidTime = document.getElementById("vid-time");
+    const vidFrame = document.getElementById("vid-frame");
+    const hudFeedName = document.getElementById("hud-feed-name");
+    const drawBtn = document.getElementById("drawBtn");
+    const drawCanvas = document.getElementById("drawCanvas");
+    const drawHelp = document.getElementById("drawHelp");
+    const speedSelect = document.getElementById("speedSelect");
+    const audioToggleBtn = document.getElementById("audioToggleBtn");
+    const sitrepModal = document.getElementById("sitrepModal");
+    const sitrepBody = document.getElementById("sitrepBody");
+    const uploadModal = document.getElementById("uploadModal");
+    const ctx = drawCanvas.getContext("2d");
+
+    // Synthesized Web Audio Alerts
+    let audioCtx = null;
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playTacticalSiren(type) {
+      if (!audioEnabled) return;
+      try {
+        initAudio();
+        if (audioCtx.state === "suspended") audioCtx.resume();
+
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        const now = audioCtx.currentTime;
+        if (type === "CRITICAL" || type === "IED" || type === "ZONE_ENTRY" || type === "ZONE_BREACH") {
+          osc.type = "sawtooth";
+          osc.frequency.setValueAtTime(880, now);
+          osc.frequency.linearRampToValueAtTime(1320, now + 0.15);
+          osc.frequency.linearRampToValueAtTime(880, now + 0.3);
+          gain.gain.setValueAtTime(0.2, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+          osc.start(now);
+          osc.stop(now + 0.35);
+        } else {
+          osc.type = "sine";
+          osc.frequency.setValueAtTime(540, now);
+          gain.gain.setValueAtTime(0.12, now);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+          osc.start(now);
+          osc.stop(now + 0.18);
+        }
+      } catch (e) {
+        console.warn("Audio alert:", e);
+      }
+    }
+
+    function toggleMuteAudio() {
+      audioEnabled = !audioEnabled;
+      audioToggleBtn.innerText = `Audio Siren: ${audioEnabled ? 'ON' : 'MUTED'}`;
+      audioToggleBtn.style.color = audioEnabled ? '#fff' : '#ef4444';
+    }
+
+    function formatTime(seconds) {
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.floor(seconds % 60);
+      return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+
+    async function loadFeeds() {
+      try {
+        const res = await fetch("/api/feeds");
+        availableFeeds = await res.json();
+        onFeedTypeChange();
+        startStream();
+      } catch (err) {
+        statusBadge.innerText = "FEED ERROR";
+        statusBadge.className = "badge critical";
+      }
+    }
+
+    function onFeedTypeChange() {
+      const selectedType = feedTypeSelect.value;
+      categorySelect.style.display = "none";
+      feedDetailSelect.innerHTML = "";
+
+      if (selectedType === "ANOMALY") {
+        categorySelect.style.display = "inline-block";
+        categorySelect.innerHTML = "";
+        const anomalyTree = availableFeeds["Anomaly Dataset Videos"] || {};
+        const categories = Object.keys(anomalyTree);
+
+        if (categories.length > 0) {
+          categories.forEach(cat => {
+            const opt = document.createElement("option");
+            opt.value = cat;
+            opt.textContent = cat;
+            categorySelect.appendChild(opt);
+          });
+          onCategoryChange();
+        } else {
+          categorySelect.innerHTML = "<option value=''>No Categories</option>";
+          feedDetailSelect.innerHTML = "<option value=''>No Anomaly Videos Found</option>";
+        }
+      } else {
+        let items = [];
+        if (selectedType === "SYNTHETIC") {
+          items = availableFeeds["Synthetic Feeds (Tactical Sim)"] || [];
+        } else if (selectedType === "SAMPLE") {
+          items = availableFeeds["Sample Tactical Videos"] || [];
+        } else if (selectedType === "UPLOAD") {
+          items = availableFeeds["Uploaded Video Archive"] || [];
+        }
+
+        items.forEach(item => {
+          const opt = document.createElement("option");
+          opt.value = item;
+          opt.textContent = item;
+          feedDetailSelect.appendChild(opt);
+        });
+      }
+    }
+
+    function onCategoryChange() {
+      const anomalyTree = availableFeeds["Anomaly Dataset Videos"] || {};
+      const cat = categorySelect.value;
+      const videos = anomalyTree[cat] || [];
+      feedDetailSelect.innerHTML = "";
+
+      videos.forEach(vid => {
+        const opt = document.createElement("option");
+        opt.value = vid;
+        opt.textContent = vid;
+        feedDetailSelect.appendChild(opt);
+      });
+    }
+
+    async function changeVisionMode() {
+      const mode = visionModeSelect.value;
+      await fetch("/api/vision_mode", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: mode })
+      });
+    }
+
+    function switchShapeType() {
+      if (isDrawing) toggleDrawMode();
+    }
+
+    function toggleDrawMode() {
+      isDrawing = !isDrawing;
+      if (isDrawing) {
+        drawBtn.innerText = "Apply Boundary";
+        drawBtn.className = "tool-btn active";
+        drawCanvas.className = "active";
+        drawHelp.style.display = "block";
+        drawnPoints = [];
+        resizeCanvas();
+      } else {
+        const shapeType = shapeTypeSelect.value;
+        if (drawnPoints.length >= 2 || (shapeType === "POLYGON" && drawnPoints.length >= 3)) {
+          applyCustomZone();
+        }
+        drawBtn.innerText = "Draw Perimeter";
+        drawBtn.className = "tool-btn";
+        drawCanvas.className = "";
+        drawHelp.style.display = "none";
+        ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      }
+    }
+
+    function resizeCanvas() {
+      drawCanvas.width = drawCanvas.offsetWidth;
+      drawCanvas.height = drawCanvas.offsetHeight;
+    }
+
+    drawCanvas.addEventListener("click", (e) => {
+      if (!isDrawing) return;
+      const rect = drawCanvas.getBoundingClientRect();
+      const xNorm = (e.clientX - rect.left) / rect.width;
+      const yNorm = (e.clientY - rect.top) / rect.height;
+      drawnPoints.push([xNorm, yNorm]);
+      renderTemporaryShape(shapeTypeSelect.value);
+    });
+
+    function renderTemporaryShape(shapeType) {
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+      ctx.strokeStyle = "#f59e0b";
+      ctx.lineWidth = 2;
+      ctx.fillStyle = "rgba(245, 158, 11, 0.25)";
+
+      if (shapeType === "POLYGON") {
+        ctx.beginPath();
+        drawnPoints.forEach((pt, idx) => {
+          const px = pt[0] * drawCanvas.width;
+          const py = pt[1] * drawCanvas.height;
+          if (idx === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+          ctx.arc(px, py, 3, 0, 2 * Math.PI);
+        });
+        if (drawnPoints.length >= 3) ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+      } else if (shapeType === "TRIPWIRE" && drawnPoints.length >= 2) {
+        ctx.beginPath();
+        ctx.moveTo(drawnPoints[0][0] * drawCanvas.width, drawnPoints[0][1] * drawCanvas.height);
+        ctx.lineTo(drawnPoints[1][0] * drawCanvas.width, drawnPoints[1][1] * drawCanvas.height);
+        ctx.stroke();
+      } else if (shapeType === "CIRCLE" && drawnPoints.length >= 2) {
+        const p1 = drawnPoints[0];
+        const p2 = drawnPoints[1];
+        const radiusPx = Math.hypot((p2[0] - p1[0]) * drawCanvas.width, (p2[1] - p1[1]) * drawCanvas.height);
+        ctx.beginPath();
+        ctx.arc(p1[0] * drawCanvas.width, p1[1] * drawCanvas.height, radiusPx, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+      }
+    }
+
+    async function applyCustomZone() {
+      const shapeType = shapeTypeSelect.value;
+      let radius = 0.1;
+      if (shapeType === "CIRCLE" && drawnPoints.length >= 2) {
+        radius = Math.hypot(drawnPoints[1][0] - drawnPoints[0][0], drawnPoints[1][1] - drawnPoints[0][1]);
+      }
+
+      await fetch("/api/zone", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          shape_type: shapeType,
+          points: drawnPoints,
+          radius: radius,
+          name: "Tactical Sector Primary"
+        })
+      });
+    }
+
+    async function clearZones() {
+      await fetch("/api/zones", { method: "DELETE" });
+      ctx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+    }
+
+    function onSpeedChange() {
+      startStream();
+    }
+
+    function clearIncidentLog() {
+      seenAlertKeys.clear();
+      alertsList.innerHTML = '<span id="no-alerts-msg" style="color: var(--text-muted); font-size: 11px;">No security incidents detected</span>';
+    }
+
+    function startStream() {
+      if (ws) ws.close();
+      clearIncidentLog();
+      targetList.innerHTML = '<span style="color: var(--text-muted); font-size: 11px;">Scanning optical feed...</span>';
+
+      const feedType = feedTypeSelect.value;
+      const category = categorySelect.value || "";
+      const filename = feedDetailSelect.value;
+      const speed = speedSelect.value || 1.0;
+
+      if (!filename) return;
+
+      hudFeedName.innerText = (feedType === "ANOMALY" && category) ? `${category} / ${filename}` : filename;
+
+      const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+      const wsUrl = `${wsProtocol}//${window.location.host}/ws/tactical_stream?source_type=${encodeURIComponent(feedType)}&category=${encodeURIComponent(category)}&filename=${encodeURIComponent(filename)}&speed=${speed}`;
+      ws = new WebSocket(wsUrl);
+
+      ws.onmessage = (event) => {
+        if (typeof event.data === "string") {
+          const payload = JSON.parse(event.data);
+
+          if (payload.status === "STREAMING") {
+            statusBadge.innerText = "STREAMING";
+            statusBadge.className = "badge streaming";
+            vidTime.innerText = formatTime(payload.video_time);
+            vidFrame.innerText = payload.frame_progress;
+          } else if (payload.status === "COMPLETED") {
+            statusBadge.innerText = "COMPLETED";
+            statusBadge.className = "badge completed";
+          }
+
+          // Target Profiles
+          if (payload.profiles && payload.profiles.length > 0) {
+            targetCountBadge.innerText = `${payload.profiles.length} Targets`;
+            targetList.innerHTML = "";
+            payload.profiles.forEach(p => {
+              const card = document.createElement("div");
+              const isBreach = p.in_restricted_zone === 1;
+              card.className = `target-card ${isBreach ? 'breach' : (p.risk_level === 'HIGH' ? 'high' : '')}`;
+              card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; font-weight: bold;">
+                  <span>#${p.track_id} &bull; ${p.cls_name.toUpperCase()}</span>
+                  <span style="color: ${isBreach ? '#ef4444' : (p.risk_level === 'HIGH' ? '#f59e0b' : '#10b981')};">
+                    ${isBreach ? 'ZONE BREACH' : `${p.risk_level} (${p.risk_score}%)`}
+                  </span>
+                </div>
+                <div class="grid-stats">
+                  <div>Spd: ${p.speed_norm}</div>
+                  <div>ML Anom: ${p.anomaly_score}</div>
+                  <div>Curv: ${p.direction_change}</div>
+                  <div>Loiter: ${p.stationary_duration}s</div>
+                </div>
+              `;
+              targetList.appendChild(card);
+            });
+          } else {
+            targetCountBadge.innerText = `0 Targets`;
+          }
+
+          // Incident Alerts
+          if (payload.alerts && payload.alerts.length > 0) {
+            const noAlerts = document.getElementById("no-alerts-msg");
+            if (noAlerts) noAlerts.remove();
+
+            payload.alerts.forEach(alert => {
+              const alertKey = `${alert.type}-${alert.track_id}-${alert.timestamp}`;
+              if (seenAlertKeys.has(alertKey)) return;
+              seenAlertKeys.add(alertKey);
+
+              playTacticalSiren(alert.severity || alert.type);
+
+              const card = document.createElement("div");
+              let typeClass = "";
+              if (alert.type === "UNATTENDED_BAGGAGE_IED") typeClass = "ied";
+              else if (alert.type === "ML_BEHAVIOR_ANOMALY") typeClass = "anomaly";
+              else if (alert.type === "LOITERING") typeClass = "loitering";
+              else if (alert.type.includes("CROWD")) typeClass = "crowd";
+
+              card.className = `alert-card ${typeClass}`;
+              card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; font-weight: bold; margin-bottom: 2px;">
+                  <span>${alert.type}</span>
+                  <span style="font-size: 10px; opacity: 0.8;">${alert.timestamp}</span>
+                </div>
+                <div>${alert.message}</div>
+              `;
+              alertsList.prepend(card);
+            });
+
+            while (alertsList.children.length > 30) alertsList.removeChild(alertsList.lastChild);
+          }
+        } else {
+          // Binary JPEG frame
+          const blob = new Blob([event.data], { type: "image/jpeg" });
+          const newUrl = URL.createObjectURL(blob);
+          if (activeObjectUrl) URL.revokeObjectURL(activeObjectUrl);
+          activeObjectUrl = newUrl;
+          streamImg.src = newUrl;
+        }
+      };
+
+      ws.onclose = () => {
+        if (statusBadge.innerText !== "COMPLETED") {
+          statusBadge.innerText = "STANDBY";
+          statusBadge.className = "badge";
+        }
+      };
+    }
+
+    // SITREP Modal & Generation
+    async function openSITREPModal() {
+      sitrepModal.classList.add("active");
+      sitrepBody.innerHTML = "<em>Compiling intelligence telemetry and generating MHA SITREP...</em>";
+
+      try {
+        const res = await fetch("/api/sitrep");
+        const data = await res.json();
+        latestSITREPMarkdown = data.markdown;
+
+        sitrepBody.innerHTML = `
+          <div style="border-bottom: 1px solid #334155; padding-bottom: 8px; margin-bottom: 10px;">
+            <h3 style="margin: 0; color: #38bdf8;">${data.operation}</h3>
+            <span style="color: #94a3b8; font-size: 11px;">NODE: ${data.icp} | SECTOR: ${data.sector} | ${data.timestamp}</span>
+            <div style="margin-top: 6px; font-weight: bold; color: ${data.threat_level.includes('RED') ? '#ef4444' : '#10b981'};">
+              THREAT STATUS: ${data.threat_level}
+            </div>
+          </div>
+
+          <h4 style="color: #10b981; margin: 10px 0 4px;">TARGET TELEMETRY METRICS</h4>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li>Total Tracked Targets: <strong>${data.metrics.total_targets}</strong></li>
+            <li>Perimeter Breaches (Critical): <strong style="color: #ef4444;">${data.metrics.critical}</strong></li>
+            <li>High-Risk Anomalies: <strong>${data.metrics.high}</strong></li>
+            <li>Loitering Targets: <strong>${data.metrics.medium}</strong></li>
+            <li>Total Logged Incidents: <strong>${data.metrics.total_incidents}</strong></li>
+          </ul>
+
+          <h4 style="color: #f59e0b; margin: 12px 0 4px;">ACTIONABLE HIT-TEAM DIRECTIVES</h4>
+          <ol style="margin: 0; padding-left: 20px; color: #fde047;">
+            ${data.directives.map(d => `<li style="margin-bottom: 4px;">${d}</li>`).join('')}
+          </ol>
+        `;
+      } catch (err) {
+        sitrepBody.innerText = "Error generating SITREP report.";
+      }
+    }
+
+    function closeSITREPModal() {
+      sitrepModal.classList.remove("active");
+    }
+
+    function downloadSITREPMarkdown() {
+      const blob = new Blob([latestSITREPMarkdown], { type: "text/markdown" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `NSG_SITREP_${Date.now()}.md`;
+      a.click();
+    }
+
+    // Video Upload
+    function triggerUploadModal() { uploadModal.classList.add("active"); }
+    function closeUploadModal() { uploadModal.classList.remove("active"); }
+
+    async function submitVideoUpload() {
+      const fileInput = document.getElementById("videoFileInput");
+      if (!fileInput.files || fileInput.files.length === 0) return alert("Please select a video file.");
+
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+
+      closeUploadModal();
+      statusBadge.innerText = "UPLOADING...";
+      statusBadge.className = "badge";
+
+      try {
+        const res = await fetch("/api/upload", { method: "POST", body: formData });
+        const result = await res.json();
+        alert(result.message);
+        loadFeeds();
+      } catch (err) {
+        alert("Upload failed.");
+      }
+    }
+
+    window.onload = loadFeeds;
+  </script>
+</body>
+</html>
