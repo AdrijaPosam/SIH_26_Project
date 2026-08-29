@@ -18,16 +18,25 @@ from pydantic import BaseModel
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, UploadFile, File, Form
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi import FastAPI
 
 from engine.tactical_engine import TacticalAnalyticsEngine
 from engine.feed_simulator import SyntheticFeedGenerator
 from engine.sitrep import SITREPGenerator
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(
-    title="NSG Tactical AI Command Engine",
-    description="Incident Command Post (ICP) AI/ML Surveillance & Threat Interpretation Platform",
-    version="2.5.0"
+app = FastAPI(title="NSG Surveillance AI Engine")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://sih-26-project-65p6tkqzc-small-potato-stuff.vercel.app"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
+
+
 
 # Directories
 SAMPLE_DIR = Path("sample_videos")
